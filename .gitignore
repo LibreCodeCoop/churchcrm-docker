@@ -1,0 +1,10 @@
+# IDE
+.vscode
+.idea
+
+# Docker volumes
+/volumes
+
+.env
+
+docker-compose.override.yml

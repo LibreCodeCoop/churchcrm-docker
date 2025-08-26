@@ -1,0 +1,64 @@
+FROM php:8.1-fpm
+
+RUN apt-get update \
+    && apt-get install -y \
+        busybox-static \
+        git \
+        jq \
+        libicu-dev \
+        libzip-dev \
+        locales \
+        procps \
+        unzip \
+        # cron
+    && mkdir -p /var/spool/cron/crontabs \
+    && echo '*/5 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data \
+    && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+    && locale-gen \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+# Install PHP extensions
+ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+RUN chmod uga+x /usr/local/bin/install-php-extensions && sync \
+    && install-php-extensions \
+    apcu \
+    curl \
+    exif \
+    fileinfo \
+    filter \
+    gd \
+    gettext \
+    iconv \
+    mbstring \
+    mysqli \
+    pdo_mysql \
+    session \
+    xdebug \
+    xml \
+    zip \
+    zlib \
+    @composer \
+    && rm /usr/local/bin/install-php-extensions \
+    # pevent errors when try to create files at /var/www with user www-data
+    && chown -R www-data /var/www
+
+# Install NVM
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash \
+    && export NVM_DIR="/root/.nvm" \
+    && . "$NVM_DIR/nvm.sh" \
+    && nvm install 20 \
+    && nvm alias default 20
+
+COPY config/php/* /usr/local/etc/php/conf.d/
+COPY scripts/* /var/www/scripts/
+
+VOLUME /var/www/html
+
+WORKDIR /var/www/html
+
+ENTRYPOINT [ "bash", "/var/www/scripts/entrypoint.sh" ]
+CMD ["php-fpm"]
