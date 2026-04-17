@@ -1,30 +1,34 @@
 services:
   mariadb:
-    image: mariadb:12.0.2
+    image: mariadb:11
     volumes:
-      - ./volumes/mariadb/init:/docker-entrypoint-initdb.d
       - ./volumes/mariadb/data:/var/lib/mysql
-      - ./volumes/mariadb/my.cnf:/etc/my.cnf
-    ports:
-      - 127.0.0.1:3306:3306
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      timeout: 20s
+      retries: 10
     environment:
       - TZ=${TZ:-CET}
       - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-root}
       - MARIADB_DATABASE=${MARIADB_DATABASE:-churchcrm}
       - MARIADB_USER=${MARIADB_USER:-churchcrm}
       - MARIADB_PASSWORD=${MARIADB_PASSWORD:-churchcrm}
+
   php:
     build:
       context: .docker/
-      dockerfile: Dockerfile.php${PHP_VERSION:-81}
+      dockerfile: Dockerfile.php${PHP_VERSION:-84}
     volumes:
       - ./.docker/scripts/wait-for-db.php:/var/www/scripts/wait-for-db.php
-      - ~/.composer:/var/www/.composer/
-      - ~/.npm:/var/www/.npm/
-      - ./.docker/config/churchcrm:/var/www/example.config
+      - ~/.composer:/var/www/.composer
+      - ~/.npm:/var/www/.npm
+      - ./.docker/config/churchcrm:/var/www/example.config:ro
       - ./volumes/churchcrm:/var/www/html
     restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
     environment:
       # Use the same UID/GID as the host user to avoid permission issues on mounted volumes
       - HOST_UID=${HOST_UID:-1000}
@@ -34,20 +38,22 @@ services:
       - MARIADB_USER=${MARIADB_USER:-churchcrm}
       - MARIADB_PASSWORD=${MARIADB_PASSWORD:-churchcrm}
       # Custom repository fork instead of the official one
-      - REPOSITORY=${REPOSITORY:-https://github.com/ChurchCRM/CRM}
+      - CHURCHCRM_REPOSITORY=${CHURCHCRM_REPOSITORY:-https://github.com/ChurchCRM/CRM}
       # Specify a branch, tag or commit hash to checkout
-      - CHURCHRCM_VERSION=${CHURCHRCM_VERSION:-master}
+      - CHURCHCRM_VERSION=${CHURCHCRM_VERSION:-master}
       # Maintain empty to disable Xdebug and also override with a volume the xdebug.ini file (see the Dockerfile to identify the path)
-      - XDEBUG_CONFIG=${XDEBUG_CONFIG:-client_host=172.17.0.1 client_port=9003 start_with_request=yes}
+      - XDEBUG_MODE=${XDEBUG_MODE:-off}
+      - XDEBUG_CONFIG=${XDEBUG_CONFIG:-client_host=host.docker.internal client_port=9003 start_with_request=yes}
       # The exposed port
       - HTTP_PORT=${HTTP_PORT:-80}
       # External URL to access ChurchCRM
-      - BASE_URL=${BASE_URL:-http://localhost}
+      - BASE_URL=${BASE_URL:-http://localhost/}
       # Prevent issues when check if is allowed to rewrite URLs
       - INTERNAL_DOMAIN=${INTERNAL_DOMAIN:-nginx}
       # Ignore HTTPS check (useful when behind a reverse proxy)
       - IGNORE_HTTPS_CHECK=${IGNORE_HTTPS_CHECK:-true}
       - ROOT_PATH=${ROOT_PATH:-}
+      - RUN_FRONTEND_BUILD=${RUN_FRONTEND_BUILD:-false}
       - TFA_SECRET=${TFA_SECRET:-ChangeThisToASecureRandomStringBeforeUse}
       # Necessary to make translations work
       - LANGUAGE=${LANGUAGE:-pt_BR.UTF-8}
@@ -57,14 +63,19 @@ services:
     ports:
       - 127.0.0.1:${WEBPACK_PORT:-3000}:3000
   nginx:
-    image: nginx:latest
+    image: nginx:stable-alpine
     restart: unless-stopped
     volumes:
-      - ./.docker/config/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./.docker/config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./volumes/churchcrm:/var/www/html:ro
+    depends_on:
+      - php
     ports:
       - 127.0.0.1:${HTTP_PORT:-80}:80
-  mailhog:
-    image: blueimp/mailhog
+
+  mailpit:
+    image: axllent/mailpit:latest
     ports:
-      - 127.0.0.1:${MAILHOG_PORT:-8025}:8025
+      - 127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025
+      - 127.0.0.1:${MAILPIT_PORT:-8025}:8025
+

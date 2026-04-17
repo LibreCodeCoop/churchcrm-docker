@@ -22,10 +22,10 @@ $TwoFASecretKey = getenv('TFA_SECRET') ?: 'ChangeThisToASecureRandomStringBefore
 // - if you will be accessing from http://www.yourdomain.com then you would enter '' ... an empty string for a top level installation.
 //
 // NOTE:
-// - the path SHOULD Start with slash, if not ''.
+// - the path SHOULD start with slash, if not ''.
 // - the path SHOULD NOT end with slash.
 // - the is case sensitive.
-$sRootPath = getenv('ROOT_PATH') ?: '/index.php';
+$sRootPath = getenv('ROOT_PATH') ?: '';
 
 // Set $bLockURL=TRUE to enforce https access by specifying exactly
 // which URL's your users may use to log into ChurchCRM.
