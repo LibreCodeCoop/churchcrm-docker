@@ -1,5 +1,5 @@
 # Unsupported PHP 8.1 variant: builds must fail until migrated or backported.
-FROM php:8.1-fpm
+FROM php:8.5-fpm
 
 RUN echo "PHP 8.1 is EOL; migrate to Dockerfile.php84" >&2; exit 1
 
